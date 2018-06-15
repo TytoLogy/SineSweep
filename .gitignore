@@ -16,3 +16,6 @@ Desktop.ini
 *.asv
 .DS_Store
 sshanbhag/.DS_Store
+
+*.mat
+

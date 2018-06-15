@@ -1,6 +1,6 @@
-function [iodev, init_status] = nidaq_init(device_number, sample_rate)
+function [iodev, init_status] = nidaq_open(device_number, sample_rate)
 %--------------------------------------------------------------------------
-% nidaq_init.m
+% nidaq_open.m
 %--------------------------------------------------------------------------
 %  ->  -> nidaq tools
 %--------------------------------------------------------------------------
@@ -18,7 +18,7 @@ function [iodev, init_status] = nidaq_init(device_number, sample_rate)
 % init_status	0 if unsuccessful (handles.NI will be empty)
 % 					1 if successful
 %------------------------------------------------------------------------
-% See also: NICal, nidaq_aiao_init, nidaq_session_io
+% See also: nidaq_close, nidaq_aiao_init, nidaq_session_io
 %------------------------------------------------------------------------
 
 %--------------------------------------------------------------------------

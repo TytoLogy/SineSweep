@@ -32,6 +32,10 @@ function [resp, varargout] = nidaq_session_io(iodev, stim, sweepduration)
 
 % load stimulus onto NI memory
 queueOutputData(iodev.NI.S, stim');
+
+% % set aquire time
+% iodev.NI.S.DurationInSeconds = sweepduration;
+
 % START ACQUIRING
 [rawdata, timestamps, triggertime] = startForeground(iodev.NI.S);
 % stop acquiring
