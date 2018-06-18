@@ -71,6 +71,8 @@ end
 %	ramp		ramp onset/offset duration (ms)
 %	reps		# of times to present sweep
 %	S			signal vector (empty for now)
+%	R			{1, reps} cell array of responses to S
+%	Fs			sample rate (samples/s) - determined after NIDAQ init
 %----------------------------------------------------
 % Some things to note for use of this in frequency response measurements:
 %	- sweep frequencies should start slightly below and end slightly above
@@ -100,6 +102,9 @@ sweep.Fs = [];
 %	mag		peak level of output sweep (Volts)
 %	ramp		ramp onset/offset duration (ms)
 %	reps		# of times to present sweep
+%	S			{# frequencies, 1} cell array of tone signals (empty for now)
+%	R			{# frequencies, reps} cell array of responses to S
+%	Fs			sample rate (samples/s) - determined after NIDAQ init
 tone.dur = 200;
 tone.acq_dur = tone.dur + 10;
 tone.freq = 1000*[10 16];
