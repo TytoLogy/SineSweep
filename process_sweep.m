@@ -188,10 +188,10 @@ resp.mag = 2*abs(resp.mag)/resp.Nfft;
 resp.phi = angle(resp.Sfft(1:Nunique));
 Fnyq = sweep.Fs/2;
 
-% compensation for -3dB/octave gain characteristic of sweep
+% compensation for -3dB/octave (or -10dB/decade) gain characteristic of sweep
 % need vector of Frequencies
 Freq = Fnyq*linspace(0, 1, length(stim.mag));
-% correction for -3dB/octave (or -10dB/decade)
+% correction for -3dB/octave
 correct3dB = 0.5*db(Freq);
 % set any ±Inf values to 0
 correct3dB(isinf(correct3dB)) = 0;
