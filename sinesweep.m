@@ -4,7 +4,7 @@
 %---------------------------------------------------------------------
 %{
 
-Testing "notebook" for frequency response measurement with swept sinusoid
+Function for frequency response measurement with swept sinusoid
 
 Process:
 
