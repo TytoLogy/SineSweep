@@ -17,19 +17,17 @@ Process:
 %% Settings
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
+%----------------------------------------------------
+% constants
+%----------------------------------------------------
 RMSsin = sqrt(2)/2;
-
-%----------------------------------------------------
-% file information
-%----------------------------------------------------
-testPath = pwd;
 
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
 %% load data from file
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
-[dataName, dataPath] = uigetfile('*.mat', 'Select sweep data file', testPath);
+[dataName, dataPath] = uigetfile('*.mat', 'Select sweep data file', pwd);
 if dataName == 0
 	fprintf('Cancelled\n');
 	return
@@ -51,7 +49,7 @@ fprintf('...done\n');
 %	start		start frequency (Hz)
 %	end		end frequency (Hz)
 %	mode		sweep mode: 'linear', 'log'
-%	mag		peak level of output sweep (Volts)
+%	peak		peak level of output sweep (Volts)
 %	ramp		ramp onset/offset duration (ms)
 %	reps		# of times to present sweep
 %	S			signal vector (empty for now)
@@ -65,7 +63,7 @@ fprintf('...done\n');
 %	dur		duration (ms)
 %	acq_dur	length of data to acquire (should be longer than sweep)	(ms)
 %	freq		frequency or frequencies to test (kHz)
-%	mag		peak level of output sweep (Volts)
+%	peak		peak level of output sweep (Volts)
 %	ramp		ramp onset/offset duration (ms)
 %	reps		# of times to present sweep
 %	S			{# frequencies, 1} cell array of tone signals (empty for now)
@@ -92,7 +90,6 @@ fprintf('...done\n');
 %% process tone data
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
-
 % storage for amplitude (mV, Pascal, dB SPL), phases (us)
 tone.amp = zeros(length(tone.freq), tone.reps);
 tone.ampPa = zeros(length(tone.freq), tone.reps);
@@ -149,6 +146,7 @@ end
 % process sweeps using filtfilt
 %----------------------------------------------------
 % filtering sweep data
+% make a local copy of R
 R = sweep.R;
 for n = 1:sweep.reps
 	R{1, n} = filtfilt(dfilt.b, dfilt.a, sweep.R{1, n});
@@ -156,6 +154,7 @@ end
 
 %----------------------------------------------------
 % spectra
+%	***********again, note only first sweep is processed here !!!!
 %----------------------------------------------------
 % process data, using length as NFFT
 % first, make sure length is even
@@ -163,9 +162,11 @@ if ~even(length(sweep.S))
 	% if not, pad with a 0
 	sweep.S = [sweep.S 0];
 end
-if ~even(length(R{1, 1}))
-	% if not, pad with a 0
-	R{1, 1} = [R{1, 1} 0];
+for n = 1:sweep.reps
+	if ~even(length(R{1, 1}))
+		% if not, pad with a 0
+		R{1, n} = [R{1, n} 0];
+	end
 end
 stim.Nfft = length(sweep.S);
 stim.Sfft = fft(sweep.S, stim.Nfft);
@@ -203,8 +204,9 @@ stim.mag_corr(fbins) = stim.mag(fbins) .* power(10, correct3dB(fbins)./20);
 resp.mag_corr = resp.mag;
 resp.mag_corr(fbins) = resp.mag(fbins) .* power(10, correct3dB(fbins)./20);
 
-
-%% Scale to dB SPL using info from tone tests
+%----------------------------------------------------
+% Scale to dB SPL using info from tone tests
+%----------------------------------------------------
 % first, need to find closest FFT frequency bin to test tone frequencies
 minbin = zeros(size(tone.freq));
 minfreq = zeros(size(tone.freq));
@@ -232,9 +234,11 @@ end
 resp.magPa_corr = resp.Pa_scale * resp.mag_corr;
 resp.magdBSPL_corr = dbspl(RMSsin * resp.magPa_corr);
 
-%----------------------------------------------------
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
 %% plot signals
-%----------------------------------------------------
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
 % generate time vector for sweep plotting
 t = 0:(1/sweep.Fs):( (0.001*sweep.dur) - (1/sweep.Fs));
 % plot input (stim) ...
@@ -242,7 +246,7 @@ figure(1)
 subplot(211)
 plot(t, sweep.S);
 xlim([min(t) max(t)])
-ylim([-1.1 1.1])
+ylim(sweep.peak*[-1.1 1.1])
 title('Sweep Stimulus');
 xlabel('time (ms)')
 ylabel('V')
@@ -251,6 +255,8 @@ figure(2)
 subplot(211)
 plot(t, R{1, 1});
 xlim([min(t) max(t)])
+ylim(max(abs(R{1, 1}))*[-1.1 1.1]);
+
 ylim([-1.1 1.1])
 title('Sweep Response')
 xlabel('time (ms)')
@@ -291,9 +297,8 @@ hold on
 	semilogx(Freq, db(resp.mag_corr));
 hold off
 legend({'uncorrected', 'corrected'})
-
 %----------------------------------------------------
-%% plot response in dB SPL
+% plot response in dB SPL
 %----------------------------------------------------
 figure(3)
 % plot response (resp)
@@ -312,3 +317,23 @@ title('Response dB SPL')
 xlabel('Frequency (Hz)')
 ylabel('dB SPL')
 grid('on');
+
+%----------------------------------------------------
+%----------------------------------------------------
+% save output file
+%----------------------------------------------------
+%----------------------------------------------------
+[~, fbase] = fileparts(dataName);
+defaultFile = [fbase '_processed.mat'];
+[outputName, outputPath] = uiputfile('*.mat', 'Processed data file', fullfile(dataPath, defaultFile));
+if outputName == 0
+	fprintf('Cancelled\n');
+	return
+else
+	fprintf('Saving processed data to %s\n', fullfile(outputPath, outputName));
+	save(fullfile(dataPath, dataName), 'stim', 'resp', 'correct3dB', 'Freq', 'dfilt', 'mic', '-MAT');
+end
+
+
+
+

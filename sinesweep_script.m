@@ -38,25 +38,51 @@ end
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
 %----------------------------------------------------
-% desired sample rate
+% I/O settings
 %----------------------------------------------------
-desiredFs = 100000;
+% input, output sampling rate (samples/second)
+desiredFs = 500000;
+% inter-stimulus interval (milliseconds)
+ISI = 500;
+% NIDAQ device number (from daq.getDevices)
 DevNum = 'Dev1';
+%----------------------------------------------------
+% Constants, precomputed
+%----------------------------------------------------
 % precompute the volts -> RMS conversion factor for sinusoids (0.7071)
 RMSsin = 1/sqrt(2);
-
 %----------------------------------------------------
 % file information
 %----------------------------------------------------
-testPath = pwd;
-
-[dataName, dataPath] = uiputfile('*.mat', 'Sweep data output file', testPath);
+% set default data directory
+if ispc
+	if exist('E:\', 'dir')
+		defaultPath = 'E:\Calibrate\SweepData';
+		if ~exist(defaultPath, 'dir')
+			defaultPath = 'E:\';
+		end
+	elseif exist('F:\', 'dir')
+		defaultPath = fullfile('F:\Users', username);
+	else
+		defaultPath = fullfile('C:\Users', username);
+	end
+else
+	defaultPath = ['~' username];
+end
+% get data file and directory
+[dataName, dataPath] = uiputfile('*.mat', 'Sweep data output file', defaultPath);
 if dataName == 0
 	fprintf('Cancelled\n');
 	return
 else
 	fprintf('Sweep data will be written to %s\n', fullfile(dataPath, dataName));
 end
+
+%----------------------------------------------------
+%----------------------------------------------------
+% Signal/Stimulus/Microphone Settings
+%----------------------------------------------------
+%----------------------------------------------------
 
 %----------------------------------------------------
 % sweep parameters
@@ -67,7 +93,7 @@ end
 %	start		start frequency (Hz)
 %	end		end frequency (Hz)
 %	mode		sweep mode: 'linear', 'log'
-%	mag		peak level of output sweep (Volts)
+%	peak		peak level of output sweep (Volts)
 %	ramp		ramp onset/offset duration (ms)
 %	reps		# of times to present sweep
 %	S			signal vector (empty for now)
@@ -84,9 +110,9 @@ end
 sweep.dur = 1000;
 sweep.acq_dur = sweep.dur + 10;
 sweep.start = 3500;
-sweep.end = 45000;
+sweep.end = 50000;
 sweep.mode = 'log';
-sweep.mag = 1;
+sweep.peak = 1;
 sweep.ramp = 0.1;
 sweep.reps = 1;
 sweep.S = [];
@@ -99,7 +125,7 @@ sweep.Fs = [];
 %	dur		duration (ms)
 %	acq_dur	length of data to acquire (should be longer than sweep)	(ms)
 %	freq		frequency or frequencies to test (Hz)
-%	mag		peak level of output sweep (Volts)
+%	peak		peak level of output sweep (Volts)
 %	ramp		ramp onset/offset duration (ms)
 %	reps		# of times to present sweep
 %	S			{# frequencies, 1} cell array of tone signals (empty for now)
@@ -107,8 +133,8 @@ sweep.Fs = [];
 %	Fs			sample rate (samples/s) - determined after NIDAQ init
 tone.dur = 200;
 tone.acq_dur = tone.dur + 10;
-tone.freq = 1000*[10 16];
-tone.mag	= 1;
+tone.freq = 1000*[10 16 32];
+tone.peak = 1;
 tone.ramp = 1;
 tone.reps = 3;
 tone.S = cell(length(tone.freq), 1);
@@ -130,7 +156,7 @@ mic.VtoPa = (1/invdb(mic.gain)) * (1 / mic.sense);
 % 	Fc_hi		highpass filter cutoff frequency (low frequency limit)
 % 	order		filter order
 % 	b, a		filter coefficients (empty for now)
-dfilt.Fc_lo = 47000;
+dfilt.Fc_lo = 55000;
 dfilt.Fc_hi = 1500;
 dfilt.order = 3;
 dfilt.b = [];
@@ -142,7 +168,12 @@ dfilt.a = [];
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
 fprintf('Running sinesweep to measure frequency response\n')
-fprintf('\tTo process data after collection, use the process_sweep.m script.\n');
+fprintf('\tTo process data after collection, use process_sweep\n');
+
+if query_user('Continue') == 0
+	fprintf('sinesweep Exiting\n');
+	return
+end
 
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
@@ -190,16 +221,17 @@ end
 %----------------------------------------------------
 % synthesize test tones
 %----------------------------------------------------
+% loop through test frequencies
 for f = 1:length(tone.freq)
-	% generate raw signal
+	% generate raw signal for output on Channel 0 ("left" or 'L')
 	tmp = syn_calibrationtone2(tone.dur, iodev.Fs, tone.freq(f), 0, 'L');
-	% save null stimulus
+	% save null stimulus (nidaq i/o expects two channels of output data)
 	if f == 1
 		nullstim = tmp(2, :);
 	end
 	tone.S{f, 1} = tmp(1, :);
 	% scale the sound
-	tone.S{f, 1} = tone.mag * tone.S{f, 1};
+	tone.S{f, 1} = tone.peak * tone.S{f, 1};
 	if tone.ramp > 0
 		% apply the sin^2 amplitude envelope to the stimulus
 		tone.S{f, 1} = sin2array(tone.S{f, 1}, tone.ramp, iodev.Fs);
@@ -211,10 +243,15 @@ end
 %% tone input/output
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
+%----------------------------------------------------
+% setup plotting things
+%----------------------------------------------------
 figure(1)
 % generate time vector for tone plots
 tt = 0:dt:( (0.001*tone.dur) - dt);
-% loop through tones
+%----------------------------------------------------
+% loop through tones and play/record
+%----------------------------------------------------
 fprintf('Playing calibration tones to determine SPL level...\n');
 for f = 1:length(tone.freq)
 	% build output matrix
@@ -222,14 +259,14 @@ for f = 1:length(tone.freq)
 	%	append two row vectors (nidaq_session_io will do the transposition)
 	outstim = [tone.S{f, 1}; nullstim];
 	% then play stimulus, record response
-	fprintf('Playing %d kHz tone...\n', tone.freq(f));
+	fprintf('Playing %d kHz tone, %.2f V peak...\n', tone.freq(f), tone.peak);
 	for n = 1:tone.reps
 		fprintf('\t\trep # %d ...', n);
 		[tmp, ~] = nidaq_session_io(iodev, outstim, 0.001*tone.acq_dur);
 		% keep only the channel 0 (left) data in tmp{1};
 		tone.R{f, n} = tmp{1};
 		clear tmp;
-		% calculate db SPL
+		% window, filter input data
 		tmp = sin2array(tone.R{f, n}, 1, iodev.Fs);
 		tmp = filtfilt(dfilt.b, dfilt.a, tmp);
 		% determine the magnitude and phase of the response
@@ -238,13 +275,14 @@ for f = 1:length(tone.freq)
 		magdB = dbspl(RMSsin * mic.VtoPa * mag);
 		% report results
 		plot(tt, tmp);
-		tstr = sprintf('Level = %.2f dB SPL\t(%.4f mV)', magdB, 1000*mag);
-		title({sprintf('%d kHz, Rep %d', tone.freq(f), n), tstr});
+		tstr1 = sprintf('%d kHz, Rep %d', 0.001*tone.freq(f), n);
+		tstr2 = sprintf('Level = %.2f dB SPL\t(%.4f mV)', magdB, 1000*mag);
+		title({tstr1, tstr2});
 		xlabel('time (ms)')
 		ylabel('V');
-		fprintf('%s\n', tstr);
-		% pause for a bit
-		pause(0.5);
+		fprintf('%s\t%s\n', tstr1, tstr2);
+		% pause for ISI
+		pause(0.001*ISI);
 	end
 	fprintf('...done\n');
 end
@@ -254,22 +292,32 @@ end
 %% sweep input/output
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
+%----------------------------------------------------
 % build output matrix
-%	first column goes to channel 1, second column to channel 2, so need to
-%	append two row vectors (nidaq_session_io will do the transposition)
+%----------------------------------------------------
+% first column goes to channel 1, second column to channel 2, so need to
+% append two row vectors (nidaq_session_io will do the transposition)
 outstim = [sweep.S; 0*sweep.S];
-fprintf('flushing buffer\n');
+%----------------------------------------------------
+% Odd things were happening with contamination of 
+% sweep with tone stimulus... kludgey fix is to 
+% play 0s..... ???????? 
+%----------------------------------------------------
+fprintf('flushing I/O buffer\n');
 [tmp, ~] = nidaq_session_io(iodev, [0*sweep.S; 0*sweep.S], 0.001*sweep.acq_dur);
-
-% then play stimulus, record response
+% pause for ISI
+pause(0.001*ISI);
+%----------------------------------------------------
+% then play sweep stimulus, record response
+%----------------------------------------------------
 for n = 1:sweep.reps
 	fprintf('Playing sweep, rep # %d ...', n);
 	[tmp, ~] = nidaq_session_io(iodev, outstim, 0.001*sweep.acq_dur);
 	% keep only the channel 0 (left) data in tmp{1};
 	sweep.R{n, 1} = tmp{1};
 	fprintf('...done\n');
-	% pause for a bit
-	pause(0.5);
+	% pause for a ISI
+	pause(0.001*ISI);
 end
 
 %---------------------------------------------------------------------
@@ -277,7 +325,6 @@ end
 %% plot sweep data
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
-
 %----------------------------------------------------
 % process sweeps using filtfilt to remove noise
 %----------------------------------------------------
@@ -289,57 +336,59 @@ end
 %----------------------------------------------------
 % plot signals
 %----------------------------------------------------
+% local copy of sweep signal
+S = sweep.S;
 % plot input (stim) ...
 figure(2)
 subplot(211)
-plot(t, sweep.S);
+plot(t, S);
 xlim([min(t) max(t)])
-ylim([-1.1 1.1])
+ylim(sweep.peak*[-1.1 1.1])
 title('Sweep Signal');
-xlabel('time (ms)')
+xlabel('time (ms)');
 % plot response (resp)
 figure(3)
 subplot(211)
 plot(t, R{1, 1});
-xlim([min(t) max(t)])
-ylim([-1.1 1.1])
-title('Sweep Response')
-xlabel('time (ms)')
+xlim([min(t) max(t)]);
+ylim(max(abs(R{1, 1}))*[-1.1 1.1]);
+title('Sweep Response');
+xlabel('time (ms)');
 
 % process data, using length as NFFT
-% first, make sure length is even
+% first, make sure length is even so that NFFT/2 is an integer
 if ~even(length(sweep.S))
 	% if not, pad with a 0
-	sweep.S = [sweep.S 0];
+	S = [sweep.S 0];
 end
 if ~even(length(R{1, 1}))
 	% if not, pad with a 0
 	R{1, 1} = [R{1, 1} 0];
 end
-sweep.Nfft = length(sweep.S);
-sweep.Sfft = fft(sweep.S, sweep.Nfft);
-resp.Nfft = length(R{1, 1});
-resp.Sfft = fft(R{1, 1}, resp.Nfft);
+Nfft_S = length(S);
+Sfft = fft(S, Nfft_S);
+Nfft_R = length(R{1, 1});
+Rfft = fft(R{1, 1}, Nfft_R);
 
 % compute magnitude spectrum
 % non-redundant points are kept
-Nunique = (sweep.Nfft/2) + 1;
-sweep.mag = sweep.Sfft(1:Nunique);
+Nunique_S = (Nfft_S/2) + 1;
+Smag = Sfft(1:Nunique_S);
 % and magnitude computed
-sweep.mag = 2*abs(sweep.mag)/sweep.Nfft;
-sweep.phi = angle(sweep.Sfft(1:Nunique));
+Smag = 2*abs(Smag)/Nfft_S;
+Sphi = angle(Sfft(1:Nunique_S));
 
 % non-redundant points are kept
-Nunique = (resp.Nfft/2) + 1;
-resp.mag = resp.Sfft(1:Nunique);
+Nunique_R = (Nfft_R/2) + 1;
+Rmag = Rfft(1:Nunique_R);
 % and magnitude computed
-resp.mag = 2*abs(resp.mag)/resp.Nfft;
-resp.phi = angle(resp.Sfft(1:Nunique));
+Rmag = 2*abs(Rmag)/Nfft_R;
+Rphi = angle(Rfft(1:Nunique_R));
 
 figure(2)
 subplot(212)
-Freq = Fnyq*linspace(0, 1, length(sweep.mag));
-semilogx(Freq, db(sweep.mag));
+Freq = Fnyq*linspace(0, 1, length(Smag));
+semilogx(Freq, db(Smag));
 xlim([0 Fnyq]);
 ylim([-100 0]);
 xlabel('Frequency (Hz)')
@@ -347,8 +396,8 @@ ylabel('dB')
 grid('on');
 figure(3)
 subplot(212)
-Freq = Fnyq*linspace(0, 1, length(resp.mag));
-semilogx(Freq, db(resp.mag));
+Freq = Fnyq*linspace(0, 1, length(Rmag));
+semilogx(Freq, db(Rmag));
 xlim([0 Fnyq]);
 ylim([-100 0]);
 xlabel('Frequency (Hz)')
@@ -360,6 +409,7 @@ grid('on');
 %% save data
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
+fprintf('Saving data to %s\n', fullfile(dataPath, dataName));
 save(fullfile(dataPath, dataName), 'sweep', 'tone', 'dfilt', 'mic', '-MAT')
 
 %---------------------------------------------------------------------
@@ -367,6 +417,7 @@ save(fullfile(dataPath, dataName), 'sweep', 'tone', 'dfilt', 'mic', '-MAT')
 %% Close NIDAQ device
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
+fprintf('Closing NI-DAQ interface...\n');
 [iodev, status] = nidaq_close(iodev);
 
 %---------------------------------------------------------------------
