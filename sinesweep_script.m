@@ -1,12 +1,10 @@
-function varargout = sinesweep
+% function varargout = sinesweep
 %---------------------------------------------------------------------
 % sinesweep.m
 %---------------------------------------------------------------------
 %{
 
 Function for frequency response measurement with swept sinusoid
-requires Data acquisition toolbox, TytoLogy toolboxes, NI-DAQ drivers,
-National Instruments hardware
 
 Process:
 
@@ -22,20 +20,6 @@ sweep so that output level can be examined to see if it is too loud)
 
 %}
 %---------------------------------------------------------------------
-
-
-%--------------------------------------------------------------------------
-% Sharad J Shanbhag
-% sshanbhag@neomed.edu
-%--------------------------------------------------------------------------
-% Created: June 2018 (SJS)
-% 
-% Revisions:
-%	19 Jun, 2018 (SJS):
-% 		- created as function (script is sinesweep_script)
-% 		- tested, seems to be working
-%							
-%--------------------------------------------------------------------------
 
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
@@ -320,7 +304,7 @@ outstim = [sweep.S; 0*sweep.S];
 % play 0s..... ???????? 
 %----------------------------------------------------
 fprintf('flushing I/O buffer\n');
-[~, ~] = nidaq_session_io(iodev, [0*sweep.S; 0*sweep.S], 0.001*sweep.acq_dur);
+[tmp, ~] = nidaq_session_io(iodev, [0*sweep.S; 0*sweep.S], 0.001*sweep.acq_dur);
 % pause for ISI
 pause(0.001*ISI);
 %----------------------------------------------------
@@ -392,14 +376,14 @@ Nunique_S = (Nfft_S/2) + 1;
 Smag = Sfft(1:Nunique_S);
 % and magnitude computed
 Smag = 2*abs(Smag)/Nfft_S;
-Sphi = angle(Sfft(1:Nunique_S)); %#ok<NASGU>
+Sphi = angle(Sfft(1:Nunique_S));
 
 % non-redundant points are kept
 Nunique_R = (Nfft_R/2) + 1;
 Rmag = Rfft(1:Nunique_R);
 % and magnitude computed
 Rmag = 2*abs(Rmag)/Nfft_R;
-Rphi = angle(Rfft(1:Nunique_R)); %#ok<NASGU>
+Rphi = angle(Rfft(1:Nunique_R));
 
 figure(2)
 subplot(212)
@@ -441,19 +425,19 @@ fprintf('Closing NI-DAQ interface...\n');
 %% assign outputs
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
-if nargout
-	if any(nargout == [1 2 3])
-		varargout{1} = sweep;
-	end
-	if any(nargout == [2 3])
-		varargout{2} = iodev;
-	end
-	if nargout == 3
-		varargout{3} = status;
-	end
-end
-
-
+% if nargout
+% 	if any(nargout == [1 2 3])
+% 		varargout{1} = sweep;
+% 	end
+% 	if any(nargout == [2 3])
+% 		varargout{2} = iodev;
+% 	end
+% 	if nargout == 3
+% 		varargout{3} = status;
+% 	end
+% end
+% 
+% 
 
 
 

@@ -17,5 +17,6 @@ Desktop.ini
 .DS_Store
 sshanbhag/.DS_Store
 
+# matlab mat files (in this folder, should all be data files)
 *.mat
 
