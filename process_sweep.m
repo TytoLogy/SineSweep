@@ -58,70 +58,102 @@ RMSsin = sqrt(2)/2;
 %----------------------------------------------------
 % initial things
 %----------------------------------------------------
-dataFile = [];
+inputFile = [];
+outputFile = [];
+
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+%% parse inputs
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+if nargin
+	n = 1;
+	while n <= nargin
+		switch(upper(varargin{n}))
+			case 'INPUTFILE'
+				inputFile = varargin{n+1};
+				n = n + 2;
+			case 'OUTPUTFILE'
+				outputFile = varargin{n+1};
+				n = n + 2;
+			otherwise
+				error('%s: invalid option %s', mfilename, varargin{n});
+		end
+	end
+end
 
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
 %% load data from file
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
-[dataName, dataPath] = uigetfile('*.mat', 'Select sweep data file', pwd);
-if dataName == 0
-	fprintf('Cancelled\n');
-	return
-else
-	fprintf('Sweep data will be read from %s\n', fullfile(dataPath, dataName));
+if isempty(inputFile)
+	[inputName, inputPath] = uigetfile('*.mat', 'Select sweep data file', pwd);
+	if inputName == 0
+		fprintf('%s: Cancelled file input\n', mfilename);
+		return
+	else
+		inputFile = fullfile(inputPath, inputName);
+	end
 end
+fprintf('Sweep data will be read from %s\n', inputFile);
 fprintf('Loading data...\n');
-load(fullfile(dataPath, dataName))
+load(inputFile, 'sweep', 'tone', 'dfilt', 'mic')
 fprintf('...done\n');
 
-%----------------------------------------------------
-% Information in mat file from sinesweep program
-%----------------------------------------------------
-% sweep struct:
-% 				properties of sweep (aka chirp) test signal
-%----------------------------------------------------
-%	dur		duration (ms)
-%	acq_dur	length of data to acquire (should be longer than sweep)	(ms)
-%	start		start frequency (Hz)
-%	end		end frequency (Hz)
-%	mode		sweep mode: 'linear', 'log'
-%	peak		peak level of output sweep (Volts)
-%	ramp		ramp onset/offset duration (ms)
-%	reps		# of times to present sweep
-%	S			signal vector (empty for now)
-%	R			{1, reps} cell array of responses to S
-%	Fs			sample rate (samples/s)
-%----------------------------------------------------
-% tone struct:
-% 				test tone parameters
-%----------------------------------------------------
-% tones are used to calibrate the levels in dB SPL
-%	dur		duration (ms)
-%	acq_dur	length of data to acquire (should be longer than sweep)	(ms)
-%	freq		frequency or frequencies to test (kHz)
-%	peak		peak level of output sweep (Volts)
-%	ramp		ramp onset/offset duration (ms)
-%	reps		# of times to present sweep
-%	S			{# frequencies, 1} cell array of tone signals (empty for now)
-%	R			{# frequencies, reps} cell array of responses to S
-%	Fs			sample rate (samples/s) - determined after NIDAQ init
-%----------------------------------------------------
-% mic struct:
-% 				these are parameters for calibration microphone
-%----------------------------------------------------
-%	gain		mic gain (dB)
-%	sense		mic sensitivity (Volts/Pascal)
-%	VtoPa		conversion factor (accounts for gain and mic sense)
-%----------------------------------------------------
-% dfilt struct:
-%				parameters for input data filtering
-%----------------------------------------------------
-% 	Fc_lo		lowpass filter cutoff frequency (high frequency limit)
-% 	Fc_hi		highpass filter cutoff frequency (low frequency limit)
-% 	order		filter order
-% 	b, a		filter coefficients (empty for now)
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+%{
+----------------------------------------------------
+Information in mat file from sinesweep program
+----------------------------------------------------
+sweep struct:
+				properties of sweep (aka chirp) test signal
+----------------------------------------------------
+	dur		duration (ms)
+	acq_dur	length of data to acquire (should be longer than sweep)	(ms)
+	start		start frequency (Hz)
+	end		end frequency (Hz)
+	mode		sweep mode: 'linear', 'log'
+	peak		peak level of output sweep (Volts)
+	ramp		ramp onset/offset duration (ms)
+	reps		# of times to present sweep
+	S			signal vector (empty for now)
+	R			{1, reps} cell array of responses to S
+	Fs			sample rate (samples/s)
+----------------------------------------------------
+tone struct:
+				test tone parameters
+----------------------------------------------------
+tones are used to calibrate the levels in dB SPL
+	dur		duration (ms)
+	acq_dur	length of data to acquire (should be longer than sweep)	(ms)
+	freq		frequency or frequencies to test (kHz)
+	peak		peak level of output sweep (Volts)
+	ramp		ramp onset/offset duration (ms)
+	reps		# of times to present sweep
+	S			{# frequencies, 1} cell array of tone signals (empty for now)
+	R			{# frequencies, reps} cell array of responses to S
+	Fs			sample rate (samples/s) - determined after NIDAQ init
+----------------------------------------------------
+mic struct:
+				these are parameters for calibration microphone
+----------------------------------------------------
+	gain		mic gain (dB)
+	sense		mic sensitivity (Volts/Pascal)
+	VtoPa		conversion factor (accounts for gain and mic sense)
+----------------------------------------------------
+dfilt struct:
+				parameters for input data filtering
+----------------------------------------------------
+	Fc_lo		lowpass filter cutoff frequency (high frequency limit)
+	Fc_hi		highpass filter cutoff frequency (low frequency limit)
+	order		filter order
+	b, a		filter coefficients (empty for now)
+%}
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+
 
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
@@ -129,7 +161,7 @@ fprintf('...done\n');
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
 % storage for amplitude (mV, Pascal, dB SPL), phases (us)
-tone.amp = zeros(length(tone.freq), tone.reps);
+tone.amp = zeros(length(tone.freq), tone.reps); %#ok<NODEF>
 tone.ampPa = zeros(length(tone.freq), tone.reps);
 tone.ampdB = zeros(length(tone.freq), tone.reps);
 tone.phi = zeros(length(tone.freq), tone.reps);
@@ -185,7 +217,7 @@ end
 %----------------------------------------------------
 % filtering sweep data
 % make a local copy of R
-R = sweep.R;
+R = sweep.R; %#ok<NODEF>
 for n = 1:sweep.reps
 	R{1, n} = filtfilt(dfilt.b, dfilt.a, sweep.R{1, n});
 end
@@ -348,30 +380,42 @@ ylabel('dB SPL')
 grid('on');
 % plot tone data points
 hold on
-	semilogx(tone.freq, tone.ampdB_mean, '.');
+	semilogx(tone.freq, tone.ampdB_mean, '.r');
 hold off
 legend({'sweep', 'tone'}, 'Box', 'off', 'Location', 'northwest')
+
+drawnow
 
 %----------------------------------------------------
 %----------------------------------------------------
 %% save output file
 %----------------------------------------------------
 %----------------------------------------------------
-
 if isempty(outputFile)
-	[~, fbase] = fileparts(dataFile);
-	defaultFile = [fbase '_processed.mat'];
-	[outputName, outputPath] = uiputfile('*.mat', 'Processed data file', fullfile(dataPath, defaultFile));
+	[fpath, fbase] = fileparts(inputFile);
+	defaultFile = fullfile(fpath, [fbase '_processed.mat']);
+	[outputName, outputPath] = uiputfile('*.mat', 'Processed data file', defaultFile);
 	if outputName == 0
-		fprintf('Cancelled\n');
-		return
+		fprintf('Writing to output cancelled\n');
 	else
 		fprintf('Saving processed data to %s\n', fullfile(outputPath, outputName));
-		save(fullfile(dataPath, dataName), 'stim', 'resp', 'correct3dB', 'Freq', 'dfilt', 'mic', '-MAT');
+		save(fullfile(outputPath, outputName), 'stim', 'resp', 'correct3dB', 'Freq', 'dfilt', 'mic', '-MAT');
 	end
 else
 	fprintf('Saving processed data to %s\n', outputFile);
 	save(outputFile, 'stim', 'resp', 'correct3dB', 'Freq', 'dfilt', 'mic', '-MAT');
+end
+
+%----------------------------------------------------
+%----------------------------------------------------
+%% assign outputs
+%----------------------------------------------------
+%----------------------------------------------------
+if nargout > 0
+	varargout{1} = resp;
+end
+if nargout >= 1
+	varargout{2} = stim;
 end
 
 
