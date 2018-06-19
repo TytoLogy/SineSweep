@@ -433,8 +433,6 @@ end
 % nested functions
 %-------------------------------------------------------------------------
 %-------------------------------------------------------------------------
-
-
 function dbval = dbspl(spl)
 %	converts sound pressure (in Pa) to dB SPL, where
 %		dBSPL = 20 * log10(spl / 20 uPa)
@@ -442,7 +440,8 @@ function dbval = dbspl(spl)
 	spl(spl <= 0) = 1e-17;
 	dbval = (20 .* log10(spl)) + 93.97940008672038 * ones(size(spl));
 end
-
+%-------------------------------------------------------------------------
+%-------------------------------------------------------------------------
 function y = sin2array(a, dur, fs)
 % 	ramps up and down signal a over duration dur in ms;
 % 	ramp profile is a squared sinusoid
@@ -462,7 +461,8 @@ function y = sin2array(a, dur, fs)
 		y = [y; y2];
 	end
 end
-
+%-------------------------------------------------------------------------
+%-------------------------------------------------------------------------
 function [amp, phi] = fitsinvec(data, skip, fs, f)
 %	Given data vector, sampling rate fs and frequency f
 %	returns amplitude amp and phase phi (in radians)
@@ -480,5 +480,14 @@ function [amp, phi] = fitsinvec(data, skip, fs, f)
 	amp = 2 * abs(complex(re, im));
 	phi = angle(complex(re, im));
 end
-	
-	
+%-------------------------------------------------------------------------
+%-------------------------------------------------------------------------
+function A = even(N)
+	if rem(N, 2) == 0
+		A = 1;
+	else
+		A = 0;
+	end
+end
+%-------------------------------------------------------------------------
+%-------------------------------------------------------------------------
