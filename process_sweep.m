@@ -316,7 +316,7 @@ Process:
 	% generate time vector for sweep plotting
 	t = 0:(1/sweep.Fs):( (0.001*sweep.dur) - (1/sweep.Fs));
 	% plot input (stim) ...
-	figure(1)
+	H1 = figure;
 	subplot(211)
 	plot(t, sweep.S);
 	xlim([min(t) max(t)])
@@ -325,7 +325,7 @@ Process:
 	xlabel('time (ms)')
 	ylabel('V')
 	% plot response (resp)
-	figure(2)
+	H2 = figure;
 	subplot(211)
 	plot(t, R{1, 1});
 	xlim([min(t) max(t)])
@@ -338,7 +338,7 @@ Process:
 	%----------------------------------------------------
 	% plot uncorrected spectra
 	%----------------------------------------------------
-	figure(1)
+	figure(H1)
 	subplot(212)
 	semilogx(Freq, db(stim.mag));
 	xlim([0 Fnyq]);
@@ -347,7 +347,7 @@ Process:
 	xlabel('Frequency (Hz)')
 	ylabel('dB')
 	grid('on');
-	figure(2)
+	figure(H2)
 	subplot(212)
 	semilogx(Freq, db(resp.mag));
 	xlim([0 Fnyq]);
@@ -359,13 +359,13 @@ Process:
 	%----------------------------------------------------
 	% plot -3dB corrected spectra
 	%----------------------------------------------------
-	figure(1)
+	figure(H1)
 	subplot(212)
 	hold on
 		semilogx(Freq, db(stim.mag_corr));
 	hold off
 	legend({'uncorrected', 'corrected'})
-	figure(2)
+	figure(H2)
 	subplot(212)
 	hold on
 		semilogx(Freq, db(resp.mag_corr));
@@ -374,7 +374,7 @@ Process:
 	%----------------------------------------------------
 	% plot response in dB SPL
 	%----------------------------------------------------
-	figure(3)
+	H3 = figure;
 	% plot spectrum (dB SPL, corrected)
 	semilogx(Freq, resp.magdBSPL_corr);
 	xlim([0 Fnyq]);
@@ -407,11 +407,21 @@ Process:
 													fullfile(outputPath, outputName));
 			save(fullfile(outputPath, outputName), 'stim', 'resp', ...
 										'correct3dB', 'Freq', 'dfilt', 'mic', '-MAT');
+			% create output figure filename
+			[~, fbase] = fileparts(outputName);
+			outputFig = fullfile(outputPath, [fbase '.fig']);
+			% save figure
+			savefig(H3, outputFig);
 		end
 	else
 		fprintf('Saving processed data to %s\n', outputFile);
 		save(outputFile, 'stim', 'resp', 'correct3dB', 'Freq', ...
 											'dfilt', 'mic', '-MAT');
+			% create output figure filename
+			[~, fbase] = fileparts(outputFile);
+			outputFig = fullfile(outputFile, [fbase '.fig']);
+			% save figure
+			savefig(H3, outputFig);		
 	end
 
 	%----------------------------------------------------

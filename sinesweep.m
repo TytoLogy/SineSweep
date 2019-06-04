@@ -57,7 +57,7 @@ end
 % I/O settings
 %----------------------------------------------------
 % input, output sampling rate (samples/second)
-desiredFs = 500000;
+desiredFs = 250000;
 % inter-stimulus interval (milliseconds)
 ISI = 500;
 % NIDAQ device number (from daq.getDevices)
@@ -128,7 +128,7 @@ sweep.acq_dur = sweep.dur + 10;
 sweep.start = 3500;
 sweep.end = 50000;
 sweep.mode = 'log';
-sweep.peak = 1;
+sweep.peak = 0.95;
 sweep.ramp = 0.1;
 sweep.reps = 1;
 sweep.S = [];
@@ -150,7 +150,7 @@ sweep.Fs = [];
 tone.dur = 200;
 tone.acq_dur = tone.dur + 10;
 tone.freq = 1000*[10 16 32];
-tone.peak = 1;
+tone.peak = 0.95;
 tone.ramp = 1;
 tone.reps = 3;
 tone.S = cell(length(tone.freq), 1);
